@@ -1,0 +1,171 @@
+```json
+{
+  "name": "NeuroVault AI (Public Version)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api-rag-endpoint",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        -16
+      ],
+      "id": "webhook-node",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "text",
+              "value": "={{$json[\"body\"][\"text\"]}}",
+              "type": "string"
+            },
+            {
+              "name": "question",
+              "value": "={{$json[\"body\"][\"question\"]}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        -16
+      ],
+      "id": "set-node",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $json[\"text\"];\n\nif (!text) {\n  throw new Error(\"No text received\");\n}\n\nconst chunks = text.match(/.{1,500}/g) || [];\n\nreturn chunks.map(chunk => ({\n  json: {\n    chunk,\n    question: $json[\"question\"]\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -16
+      ],
+      "id": "chunking-node",
+      "name": "Chunk Text"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst combinedChunks = items.map(item => item.json.chunk).join(\" \");\nconst question = items[0]?.json?.question;\n\nreturn [{\n  json: {\n    chunk: combinedChunks,\n    question: question\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        -16
+      ],
+      "id": "merge-node",
+      "name": "Merge Chunks"
+    },
+    {
+      "parameters": {
+        "modelId": "models/gemini-2.5-flash",
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an AI assistant.\n\nContext:\n{{$json[\"chunk\"]}}\n\nQuestion:\n{{$json[\"question\"]}}\n\nAnswer ONLY using the context above."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        -16
+      ],
+      "id": "ai-node",
+      "name": "AI Model"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $json.content?.parts?.[0]?.text || \"No response\";\n\nreturn [{\n  json: {\n    answer: text\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        -16
+      ],
+      "id": "output-node",
+      "name": "Format Output"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Chunk Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk Text": {
+      "main": [
+        [
+          {
+            "node": "Merge Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Chunks": {
+      "main": [
+        [
+          {
+            "node": "AI Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Model": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+```
